@@ -6,6 +6,7 @@ import json
 import time
 import os
 from os.path import join as pjoin
+from paddleocr import PaddleOCR
 
 
 def save_detection_json(file_path, texts, img_shape):
@@ -109,12 +110,14 @@ def text_cvt_orc_format(ocr_result):
 
 def text_cvt_orc_format_paddle(paddle_result):
     texts = []
-    for i, line in enumerate(paddle_result):
-        points = np.array(line[0])
-        location = {'left': int(min(points[:, 0])), 'top': int(min(points[:, 1])), 'right': int(max(points[:, 0])),
-                    'bottom': int(max(points[:, 1]))}
-        content = line[1][0]
-        texts.append(Text(i, content, location))
+    if paddle_result is not None:
+        effective_result = paddle_result[0]
+        for i, line in enumerate(effective_result):
+            points = np.array(line[0])
+            location = {'left': int(points[0][0]), 'top': int(points[0][1]), 'right': int(points[2][0]),
+                        'bottom': int(points[2][1])}
+            content = line[1][0]
+            texts.append(Text(i, content, location))
     return texts
 
 
@@ -132,7 +135,7 @@ def text_detection(input_file='../data/input/30800.jpg', output_file='../data/ou
     :param method: google or paddle
     :param paddle_model: the preload paddle model for paddle ocr
     '''
-    start = time.clock()
+    start = time.time()
     name = input_file.split('/')[-1][:-4]
     ocr_root = pjoin(output_file, 'ocr')
     img = cv2.imread(input_file)
@@ -145,11 +148,9 @@ def text_detection(input_file='../data/input/30800.jpg', output_file='../data/ou
         texts = text_filter_noise(texts)
         texts = text_sentences_recognition(texts)
     elif method == 'paddle':
-        # The import of the paddle ocr can be separate to the beginning of the program if you decide to use this method
-        from paddleocr import PaddleOCR
         print('*** Detect Text through Paddle OCR ***')
         if paddle_model is None:
-            paddle_model = PaddleOCR(use_angle_cls=True, lang="ch")
+            paddle_model = PaddleOCR(use_angle_cls=True, lang="en")
         result = paddle_model.ocr(input_file, cls=True)
         texts = text_cvt_orc_format_paddle(result)
     else:
@@ -157,7 +158,7 @@ def text_detection(input_file='../data/input/30800.jpg', output_file='../data/ou
 
     visualize_texts(img, texts, shown_resize_height=800, show=show, write_path=pjoin(ocr_root, name+'.png'))
     save_detection_json(pjoin(ocr_root, name+'.json'), texts, img.shape)
-    print("[Text Detection Completed in %.3f s] Input: %s Output: %s" % (time.clock() - start, input_file, pjoin(ocr_root, name+'.json')))
+    print("[Text Detection Completed in %.3f s] Input: %s Output: %s" % (time.time() - start, input_file, pjoin(ocr_root, name+'.json')))
 
 
 # text_detection()
